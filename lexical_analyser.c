@@ -85,7 +85,7 @@ int main()
     // Test input string
     char *buffer = 0;
     long length;
-    FILE *f = fopen("8.c", "r");
+    FILE *f = fopen("1.c", "r");
     if (f)
     {
         fseek(f, 0, SEEK_END);
@@ -291,10 +291,12 @@ int getNextToken()
             else if (ch == '/')
             {
                 pCrtCh++;
-                if (ch == '/')
+                if (*pCrtCh == '/')
                 {
-                    pCrtCh++;
                     state = 27;
+                }
+                else if(*pCrtCh == '*'){
+                    state = 28;
                 }
                 else
                 {
@@ -539,7 +541,6 @@ int getNextToken()
         case 6:
             if (isdigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
             {
-                printf("%c", ch);
                 pCrtCh++;
                 state = 6;
             }
@@ -600,20 +601,14 @@ int getNextToken()
             }
             break;
         case 13:
-            if (ch == '"')
-            {
-                pCrtCh++;
-                state = 26;
-            }
-            else if (ch == '\'')
+            if (ch == '\'')
             {
                 pCrtCh++;
                 state = 22;
             }
             else
             {
-                state = 0;
-                err("invalid character");
+                state = 25;
             }
             break;
         case 14:
@@ -694,7 +689,6 @@ int getNextToken()
         case 23:
             if (ch == '\\')
             {
-                printf("$$$");
                 pCrtCh++;
                 state = 12;
             }
@@ -715,7 +709,12 @@ int getNextToken()
                 pCrtCh++;
                 state = 26;
             }
-            else if (ch != '\'' && ch != '\\')
+            else if (ch == '\\')
+            {
+                pCrtCh++;
+                state = 12;
+            }
+            else if (ch != '\"' && ch != '\\')
             {
                 pCrtCh++;
                 state = 25;
@@ -744,6 +743,25 @@ int getNextToken()
                 state = 0;
             }
             break;
+        case 28:
+            pCrtCh++;
+            if (*pCrtCh == '*')
+            {
+                pCrtCh++;
+                if(*pCrtCh == '/')
+                {
+                    pCrtCh++;
+                    state=0;
+                }
+                else
+                {
+                    pCrtCh--;
+                }
+            }
+            else
+            {
+                state=28;
+            }
         }
     }
 }
