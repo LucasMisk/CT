@@ -151,7 +151,7 @@ void mvGetInt(){
 	Symbol *fn=addExtFn("get_i",get_i,(Type){TB_INT,NULL,-1});
 }
 void mvGetChar(){
-	Symbol *fn=addExtFn("get_i",get_i,(Type){TB_CHAR,NULL,-1});
+	Symbol *fn=addExtFn("get_c",get_c,(Type){TB_CHAR,NULL,-1});
 }
 
 

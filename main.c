@@ -98,21 +98,45 @@ void tkerr(const Token *tk,const char *fmt,...)
 
 Token *tokens, *lastToken, *iTk, *consumedTk;
 
-Token *addTk(int code)
+Token *addTk(int code, char *data, int type)
 {
-  Token *tk;
-  SAFEALLOC(tk,Token)
-  tk->code = code;
-  tk->line = line;
-  tk->next = NULL;
-  if(lastToken){
-    lastToken->next = tk;
-  }
-  else{
-    tokens = tk;
-  }
-  lastToken = tk;
-  return tk;
+    Token *tk;
+    tk = (Token *)malloc(sizeof(Token));
+    if (!tk)
+        err("Not enough memory for token allocation");
+
+    tk->code = code;
+    tk->line = line;
+    tk->next = NULL;
+
+    if (type == 0)
+    {
+        tk->text = (char *)malloc(sizeof(char) * (strlen(data) + 1));
+        strcpy(tk->text, data);
+    }
+    else if (type == 1)
+        if (data[0] == '0' && data[1] == 'x')
+        {
+            tk->i = strtol(data, NULL, 16);
+        }
+        else if (data[0] == '0')
+        {
+            tk->i = strtol(data, NULL, 8);
+        }
+        else
+            tk->i = atoi(data);
+    else if (type == 2)
+        tk->r = atof(data);
+    if (lastToken)
+    {
+        lastToken->next = tk;
+    }
+    else
+    {
+        tokens = tk;
+    }
+    lastToken = tk;
+    return tk;
 }
 
 char *createString(const char *pStartCh, const char *pCrtCh)
@@ -127,414 +151,630 @@ char *createString(const char *pStartCh, const char *pCrtCh)
 
 int getNextToken()
 {
-  int state=0,nCh;
-  char ch;
-  const char *pStartCh;
-  Token *tk;
+    int state = 0;
+    const char *pStartCh;
+    char *newString;
 
-  for(;;){// bucla infinita
-    ch=*pCrtCh;
-    switch(state){
-      case 0:
-        if(isalpha(ch)||ch=='_'){
-          pStartCh=pCrtCh;// memoreaza inceputul ID-ului
-          pCrtCh++;// consuma caracterul
-          state=1;// trece la noua stare
+    while (1)
+    {
+        char ch = *pCrtCh;
+
+        switch (state)
+        {
+        case 0:
+            if (isalpha(ch) || ch == '_')
+            {
+                pStartCh = pCrtCh;
+                pCrtCh++;
+                state = 1;
+            }
+            else if (ch == ' ' || ch == '\r' || ch == '\t')
+            {
+                pCrtCh++;
+            }
+            else if (ch == '\n')
+            {
+                line++;
+                pCrtCh++;
+            }
+            else if (ch == '0')
+            {
+                pStartCh = pCrtCh;
+                pCrtCh++;
+                state = 5;
+            }
+            else if (isdigit(ch))
+            {
+                pStartCh = pCrtCh;
+                pCrtCh++;
+                state = 3;
+            }
+            else if (ch == '\'')
+            {
+                pStartCh = pCrtCh;
+                pCrtCh++;
+                state = 19;
+            }
+            else if (ch == '"')
+            {
+                pStartCh = pCrtCh;
+                pCrtCh++;
+                state = 23;
+            }
+            else if (ch == 0)
+            {
+                addTk(END, NULL, 4);
+                return END;
+            }
+            else if (ch == ',')
+            {
+                pCrtCh++;
+                addTk(COMMA, ",", 0);
+                return COMMA;
+            }
+            else if (ch == ';')
+            {
+                pCrtCh++;
+                addTk(SEMICOLON, ";", 0);
+                return SEMICOLON;
+            }
+            else if (ch == '(')
+            {
+                pCrtCh++;
+                addTk(LPAR, "(", 0);
+                return LPAR;
+            }
+            else if (ch == ')')
+            {
+                pCrtCh++;
+                addTk(RPAR, ")", 0);
+                return RPAR;
+            }
+            else if (ch == '[')
+            {
+                pCrtCh++;
+                addTk(LBRACKET, "[", 0);
+                return LBRACKET;
+            }
+            else if (ch == ']')
+            {
+                pCrtCh++;
+                addTk(RBRACKET, "]", 0);
+                return RBRACKET;
+            }
+            else if (ch == '{')
+            {
+                pCrtCh++;
+                addTk(LACC, "{", 0);
+                return LACC;
+            }
+            else if (ch == '}')
+            {
+                pCrtCh++;
+                addTk(RACC, "}", 0);
+                return RACC;
+            }
+            else if (ch == '+')
+            {
+                pCrtCh++;
+                addTk(ADD, "+", 0);
+                return ADD;
+            }
+            else if (ch == '-')
+            {
+                pCrtCh++;
+                addTk(SUB, "-", 0);
+                return SUB;
+            }
+            else if (ch == '*')
+            {
+                pCrtCh++;
+                addTk(MUL, "*", 0);
+                return MUL;
+            }
+            else if (ch == '/')
+            {
+                pCrtCh++;
+                if (*pCrtCh == '/')
+                {
+                    state = 27;
+                }
+                else if (*pCrtCh == '*')
+                {
+                    state = 28;
+                }
+                else
+                {
+                    addTk(DIV, "/", 0);
+                    return DIV;
+                }
+            }
+            else if (ch == '.')
+            {
+                pCrtCh++;
+                addTk(DOT, ".", 0);
+                return DOT;
+            }
+            else if (ch == '&')
+            {
+                pCrtCh++;
+                if (*pCrtCh == '&')
+                {
+                    pCrtCh++;
+                    addTk(AND, "&&", 0);
+                    return AND;
+                }
+                else
+                {
+                    tkerr(tokens, "Expected &&");
+                }
+            }
+            else if (ch == '|')
+            {
+                pCrtCh++;
+                if (*pCrtCh == '|')
+                {
+                    pCrtCh++;
+                    addTk(OR, "||", 0);
+                    return OR;
+                }
+                else
+                {
+                    tkerr(tokens, "Expected ||");
+                }
+            }
+            else if (ch == '!')
+            {
+                pCrtCh++;
+                addTk(NOT, "!", 0);
+                return NOT;
+            }
+            else if (ch == '=')
+            {
+                pCrtCh++;
+                if (*pCrtCh == '=')
+                {
+                    pCrtCh++;
+                    addTk(EQUAL, "==", 0);
+                    return EQUAL;
+                }
+                else
+                {
+                    addTk(ASSIGN, "=", 0);
+                    return ASSIGN;
+                }
+            }
+            else if (ch == '<')
+            {
+                pCrtCh++;
+                if (*pCrtCh == '=')
+                {
+                    pCrtCh++;
+                    addTk(LESSEQ, "<=", 0);
+                    return LESSEQ;
+                }
+                else
+                {
+                    addTk(LESS, "<", 0);
+                    return LESS;
+                }
+            }
+            else if (ch == '>')
+            {
+                pCrtCh++;
+                if (*pCrtCh == '=')
+                {
+                    pCrtCh++;
+                    addTk(GREATEREQ, ">=", 0);
+                    return GREATEREQ;
+                }
+                else
+                {
+                    addTk(GREATER, ">", 0);
+                    return GREATER;
+                }
+            }
+            else
+            {
+                printf("%c", ch);
+                pCrtCh++;
+                // err("invalid character");
+            }
+            break;
+
+        case 1:
+            if (isalnum(ch) || ch == '_')
+            {
+                pCrtCh++;
+            }
+            else
+            {
+                state = 2;
+            }
+            break;
+
+        case 2:
+            newString = (char *)malloc(sizeof(char) * (pCrtCh - pStartCh + 1));
+            strncpy(newString, pStartCh, pCrtCh - pStartCh);
+            newString[pCrtCh - pStartCh] = '\0';
+            if (strcmp(newString, "break") == 0)
+            {
+                addTk(BREAK, newString, 0);
+                return BREAK;
+            }
+            else if (strcmp(newString, "char") == 0)
+            {
+                addTk(CHAR, newString, 0);
+                return CHAR;
+            }
+            else if (strcmp(newString, "double") == 0)
+            {
+                addTk(DOUBLE, newString, 0);
+                return DOUBLE;
+            }
+            else if (strcmp(newString, "else") == 0)
+            {
+                addTk(ELSE, newString, 0);
+                return ELSE;
+            }
+            else if (strcmp(newString, "for") == 0)
+            {
+                addTk(FOR, newString, 0);
+                return FOR;
+            }
+            else if (strcmp(newString, "if") == 0)
+            {
+                addTk(IF, newString, 0);
+                return IF;
+            }
+            else if (strcmp(newString, "int") == 0)
+            {
+                addTk(INT, newString, 0);
+                return INT;
+            }
+            else if (strcmp(newString, "return") == 0)
+            {
+                addTk(RETURN, newString, 0);
+                return RETURN;
+            }
+            else if (strcmp(newString, "struct") == 0)
+            {
+                addTk(STRUCT, newString, 0);
+                return STRUCT;
+            }
+            else if (strcmp(newString, "void") == 0)
+            {
+                addTk(VOID, newString, 0);
+                return VOID;
+            }
+            else if (strcmp(newString, "while") == 0)
+            {
+                addTk(WHILE, newString, 0);
+                return WHILE;
+            }
+            else
+            {
+                addTk(ID, newString, 0);
+                return ID;
+            }
+
+        case 3:
+            if (isdigit(ch))
+            {
+                pCrtCh++;
+                state = 3;
+            }
+            else if (ch == 'e' || ch == 'E')
+            {
+                pCrtCh++;
+                state = 14;
+            }
+            else if (ch == '.')
+            {
+                pCrtCh++;
+                state = 7;
+            }
+            else
+            {
+                state = 4;
+            }
+            break;
+        case 4:
+            newString = (char *)malloc(sizeof(char) * (pCrtCh - pStartCh + 1));
+            strncpy(newString, pStartCh, pCrtCh - pStartCh);
+            newString[pCrtCh - pStartCh] = '\0';
+            addTk(CT_INT, newString, 1);
+            return CT_INT;
+        case 5:
+            if (ch == '8' || ch == '9')
+            {
+                pCrtCh++;
+                state = 3;
+            }
+            else if (isdigit(ch))
+            {
+                pCrtCh++;
+                state = 5;
+            }
+            else if (ch == 'x' || ch == 'X')
+            {
+                pCrtCh++;
+                state = 6;
+            }
+            else if (ch == '.')
+            {
+                pCrtCh++;
+                state = 7;
+            }
+            else if (ch == 'e' || ch == 'E')
+            {
+                pCrtCh++;
+                state = 14;
+            }
+            else
+            {
+                state = 6;
+            }
+            break;
+        case 6:
+            if (isdigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
+            {
+                pCrtCh++;
+                state = 6;
+            }
+            else
+            {
+                newString = (char *)malloc(sizeof(char) * (pCrtCh - pStartCh + 1));
+                strncpy(newString, pStartCh, pCrtCh - pStartCh);
+                newString[pCrtCh - pStartCh] = '\0';
+                addTk(CT_INT, newString, 1);
+                return CT_INT;
+            }
+            break;
+        case 7:
+            if (isdigit(ch))
+            {
+                pCrtCh++;
+                state = 8;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 8:
+            if (isdigit(ch))
+            {
+                pCrtCh++;
+                state = 8;
+            }
+            else if (ch == 'e' || ch == 'E')
+            {
+                pCrtCh++;
+                state = 14;
+            }
+            else
+            {
+                pCrtCh++;
+                state = 9;
+            }
+            break;
+        case 9:
+            newString = (char *)malloc(sizeof(char) * (pCrtCh - pStartCh + 1));
+            strncpy(newString, pStartCh, pCrtCh - pStartCh);
+            newString[pCrtCh - pStartCh] = '\0';
+            addTk(CT_REAL, newString, 2);
+            return CT_REAL;
+        case 12:
+            if (ch == 'a' || ch == 'b' || ch == 'f' || ch == 'n' || ch == 'r' || ch == 't' || ch == 'v' || ch == '\'' || ch == '?' || ch == '"' || ch == '\\' || ch == '0')
+            {
+                pCrtCh++;
+                state = 13;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 13:
+            if (ch == '\'')
+            {
+                pCrtCh++;
+                state = 22;
+            }
+            else
+            {
+                state = 25;
+            }
+            break;
+        case 14:
+            if (ch == '+' || ch == '-')
+            {
+                pCrtCh++;
+                state = 15;
+            }
+            else if (isdigit(ch))
+            {
+                pCrtCh++;
+                state = 16;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 15:
+            if (isdigit(ch))
+            {
+                pCrtCh++;
+                state = 16;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 16:
+            if (isdigit(ch))
+            {
+                pCrtCh++;
+                state = 16;
+            }
+            else
+            {
+                state = 9;
+            }
+            break;
+        case 19:
+            if (ch == '\\')
+            {
+                pCrtCh++;
+                state = 12;
+            }
+            else if (ch != '\'' && ch != '\\')
+            {
+                pCrtCh++;
+                state = 21;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 21:
+            if (ch == '\'')
+            {
+                pCrtCh++;
+                state = 22;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 22:
+            newString = (char *)malloc(sizeof(char) * (pCrtCh - pStartCh + 1));
+            strncpy(newString, pStartCh, pCrtCh - pStartCh);
+            newString[pCrtCh - pStartCh] = '\0';
+            addTk(CT_CHAR, newString, 0);
+            return CT_CHAR;
+        case 23:
+            if (ch == '\\')
+            {
+                pCrtCh++;
+                state = 12;
+            }
+            else if (ch != '\'' && ch != '\\')
+            {
+                pCrtCh++;
+                state = 25;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 25:
+            if (ch == '"')
+            {
+                pCrtCh++;
+                state = 26;
+            }
+            else if (ch == '\\')
+            {
+                pCrtCh++;
+                state = 12;
+            }
+            else if (ch != '\"' && ch != '\\')
+            {
+                pCrtCh++;
+                state = 25;
+            }
+            else
+            {
+                state = 0;
+                err("invalid character");
+            }
+            break;
+        case 26:
+            newString = (char *)malloc(sizeof(char) * (pCrtCh - pStartCh + 1));
+            strncpy(newString, pStartCh, pCrtCh - pStartCh);
+            newString[pCrtCh - pStartCh] = '\0';
+            addTk(CT_STRING, newString, 0);
+            return CT_STRING;
+        case 27:
+            pCrtCh++;
+            if (ch != '\n' && ch != '\r' && ch != '\0')
+            {
+                state = 27;
+            }
+            else
+            {
+                pCrtCh--;
+                state = 0;
+            }
+            break;
+        case 28:
+            pCrtCh++;
+            if (*pCrtCh == '*')
+            {
+                pCrtCh++;
+                if (*pCrtCh == '/')
+                {
+                    pCrtCh++;
+                    state = 0;
+                }
+                else
+                {
+                    pCrtCh--;
+                }
+            }
+            else
+            {
+                state = 28;
+            }
         }
-        else if(ch=='\''){
-          pCrtCh++;
-          pStartCh = pCrtCh;
-          state=3;
-        }
-        else if(ch=='"'){
-          pCrtCh++;
-          pStartCh = pCrtCh;
-          state=6;
-        }
-        else if(isdigit(ch)){
-          pStartCh = pCrtCh;
-          pCrtCh++;
-          state=9;
-        }
-        else if(ch==','){
-          pCrtCh++;
-          state=17;
-        }
-        else if(ch==';'){
-          pCrtCh++;
-          state=18;
-        }
-        else if(ch=='('){
-          pCrtCh++;
-          state=19;
-        }
-        else if(ch==')'){
-          pCrtCh++;
-          state=20;
-        }
-        else if(ch=='['){
-          pCrtCh++;
-          state=21;
-        }
-        else if(ch==']'){
-          pCrtCh++;
-          state=22;
-        }
-        else if(ch=='{'){
-          pCrtCh++;
-          state=23;
-        }
-        else if(ch=='}'){
-          pCrtCh++;
-          state=24;
-        }
-        else if(ch=='\0' || ch==EOF){
-          pCrtCh++;
-          state=25;
-        }
-        else if(ch=='+'){
-          pCrtCh++;
-          state=26;
-        }
-        else if(ch=='-'){
-          pCrtCh++;
-          state=27;
-        }
-        else if(ch=='*'){
-          pCrtCh++;
-          state=28;
-        }
-        else if(ch=='/'){
-          pCrtCh++;
-          state=29;
-        }
-        else if(ch=='.'){
-          pCrtCh++;
-          state=32;
-        }
-        else if(ch=='&'){
-          pCrtCh++;
-          state=33;
-        }
-        else if(ch=='|'){
-          pCrtCh++;
-          state=35;
-        }
-        else if(ch=='='){
-          pCrtCh++;
-          state=37;
-        }
-        else if(ch=='!'){
-          pCrtCh++;
-          state=40;
-        }
-        else if(ch=='<'){
-          pCrtCh++;
-          state=43;
-        }
-        else if(ch=='>'){
-          pCrtCh++;
-          state=46;
-        }
-        else if(ch==' '||ch=='\r'||ch=='\t'){
-          pCrtCh++;
-        }
-        else if(ch=='\n'){ // tratat separat pentru a actualiza linia curenta
-          line++;
-          pCrtCh++;
-        }
-        else tkerr(addTk(END),"caracter invalid");
-        break;
-      case 1:
-        if(isalnum(ch)||ch=='_')
-          pCrtCh++;
-        else state=2;
-        break;
-      case 2:
-        nCh=pCrtCh-pStartCh; // lungimea cuvantului gasit
-        // teste cuvinte cheie
-        if(nCh==5&&!memcmp(pStartCh,"break",5)) tk=addTk(BREAK);
-        else if(nCh==4&&!memcmp(pStartCh,"char",4)) tk=addTk(CHAR);
-        else if(nCh==6&&!memcmp(pStartCh,"double",6)) tk=addTk(DOUBLE);
-        else if(nCh==4&&!memcmp(pStartCh,"else",4)) tk=addTk(ELSE);
-        else if(nCh==3&&!memcmp(pStartCh,"for",3)) tk=addTk(FOR);
-        else if(nCh==2&&!memcmp(pStartCh,"if",2)) tk=addTk(IF);
-        else if(nCh==3&&!memcmp(pStartCh,"int",3)) tk=addTk(INT);
-        else if(nCh==6&&!memcmp(pStartCh,"return",6)) tk=addTk(RETURN);
-        else if(nCh==6&&!memcmp(pStartCh,"struct",6)) tk=addTk(STRUCT);
-        else if(nCh==5&&!memcmp(pStartCh,"while",5)) tk=addTk(WHILE);
-        else if(nCh==4&&!memcmp(pStartCh,"void",4)) tk=addTk(VOID);
-        else{ // daca nu este un cuvant cheie, atunci e un ID
-          tk=addTk(ID);
-          tk->text=createString(pStartCh,pCrtCh);
-        }
-        return tk->code;
-      case 3:
-        if(ch!='\''){
-          pCrtCh++;
-          state=4;
-        }
-        else tkerr(addTk(END),"caracter invalid");
-        break;
-      case 4:
-        if(ch=='\''){
-          pCrtCh++;
-          state=5;
-        }
-        else tkerr(addTk(END),"caracter invalid");
-        break;
-      case 5:
-        tk=addTk(CT_CHAR);
-        tk->i = pStartCh[0]-'0';
-        return CT_CHAR;
-      case 6:
-        if(ch!='"')
-          pCrtCh++;
-        else{
-          pCrtCh++;
-          state=8;
-        }
-        break;
-  /**    case 7:
-        if(ch=='"'){
-          pCrtCh++;
-          state=8;
-        }
-        break; **/
-      case 8:
-        tk=addTk(CT_STRING);
-        tk->text = createString(pStartCh,pCrtCh-1);
-        return CT_STRING;
-      case 9:
-        if(isdigit(ch)){
-          pCrtCh++;
-        }
-        else if(ch=='.'){
-          pCrtCh++;
-          state=11;
-        }
-        else if(ch=='e' || ch=='E'){
-          pCrtCh++;
-          state=13;
-        }
-        else
-          state=10;
-        break;
-      case 10:
-        tk = addTk(CT_INT);
-        tk->i = atoi(createString(pStartCh,pCrtCh));
-        return(CT_INT);
-      case 11:
-        if(isdigit(ch)){
-          pCrtCh++;
-          state=12;
-        }
-        else tkerr(addTk(END),"caracter invalid");
-        break;
-      case 12:
-        if(isdigit(ch)){
-          pCrtCh++;
-        }
-        else if(ch=='e' || ch=='E'){
-          pCrtCh++;
-          state=13;
-        }
-        else
-          state=16;
-        break;
-      case 13:
-        if(ch=='+' || ch=='-'){
-          pCrtCh++;
-          state=14;
-        }
-        else
-          state=14;
-        break;
-      case 14:
-        if(isdigit(ch)){
-          pCrtCh++;
-          state=15;
-        }
-        else tkerr(addTk(END),"caracter invalid");
-        break;
-      case 15:
-        if(isdigit(ch)){
-          pCrtCh++;
-        }
-        else
-          state=16;
-        break;
-      case 16:
-        tk=addTk(CT_REAL);
-        tk->r = atof(createString(pStartCh,pCrtCh));
-        return CT_REAL;
-      case 17:
-        addTk(COMMA);
-        return COMMA;
-      case 18:
-        addTk(SEMICOLON);
-        return SEMICOLON;
-      case 19:
-        addTk(LPAR);
-        return LPAR;
-      case 20:
-        addTk(RPAR);
-        return RPAR;
-      case 21:
-        addTk(LBRACKET);
-        return LBRACKET;
-      case 22:
-        addTk(RBRACKET);
-        return RBRACKET;
-      case 23:
-        addTk(LACC);
-        return LACC;
-      case 24:
-        addTk(RACC);
-        return RACC;
-      case 25:
-        addTk(END);
-        return END;
-      case 26:
-        addTk(ADD);
-        return ADD;
-      case 27:
-        addTk(SUB);
-        return SUB;
-      case 28:
-        addTk(MUL);
-        return MUL;
-      case 29:
-        if(ch=='/'){
-          pCrtCh++;
-          state=31;
-        }
-        else
-          state=30;
-        break;
-      case 30:
-        addTk(DIV);
-        return DIV;
-      case 31:
-        if(ch!='\r' && ch!='\0' && ch!='\n'){
-          pCrtCh++;
-        }
-        else if(ch=='\r' || ch=='\0'){
-          pCrtCh++;
-          state=0;
-        }
-        else if(ch=='\n'){
-          line++;
-          pCrtCh++;
-          state=0;
-        }
-        break;
-      case 32:
-        addTk(DOT);
-        return DOT;
-      case 33:
-        if(ch=='&'){
-          pCrtCh++;
-          state=34;
-        }
-        else tkerr(addTk(END),"caracter invalid");
-        break;
-      case 34:
-        addTk(AND);
-        return AND;
-      case 35:
-        if(ch=='|'){
-          pCrtCh++;
-          state=36;
-        }
-        else tkerr(addTk(END),"caracter invalid");
-        break;
-      case 36:
-        addTk(OR);
-        return OR;
-      case 37:
-        if(ch=='='){
-          pCrtCh++;
-          state=39;
-        }
-        else
-          state=38;
-        break;
-      case 38:
-        addTk(ASSIGN);
-        return ASSIGN;
-      case 39:
-        addTk(EQUAL);
-        return EQUAL;
-      case 40:
-        if(ch=='='){
-          pCrtCh++;
-          state=42;
-        }
-        else
-          state=41;
-        break;
-      case 41:
-        addTk(NOT);
-        return NOT;
-      case 42:
-        addTk(NOTEQ);
-        return NOTEQ;
-      case 43:
-        if(ch=='='){
-          pCrtCh++;
-          state=45;
-        }
-        else
-          state=44;
-        break;
-      case 44:
-        addTk(LESS);
-        return LESS;
-      case 45:
-        addTk(LESSEQ);
-        return LESSEQ;
-      case 46:
-        if(ch=='='){
-          pCrtCh++;
-          state=48;
-        }
-        else
-          state=47;
-        break;
-      case 47:
-        addTk(GREATER);
-        return GREATER;
-      case 48:
-        addTk(GREATEREQ);
-        return GREATEREQ;
-      default:
-        err("Eroare: Caracter necunoscut");
-        break;
     }
-  }
 }
 
 void showAtoms()
 {
-  Token *tk = tokens;
-  while(tk)
-  {
-    printf("%d %s", tk->line+1, map[tk->code]);
-    if(tk->code == ID || tk->code == CT_STRING)
-      printf(":%s", tk->text);
-    else if(tk->code == CT_INT)
-      printf(":%d", tk->i);
-    else if(tk->code == CT_CHAR)
-      printf(":%c", tk->i +'0');
-    else if(tk->code == CT_REAL)
-      printf(":%f", tk->r);
-
-    printf("\n");
-
-    tk = tk->next;
-  }
-  free(tk);
+    Token *currentToken = tokens;
+    while (currentToken != NULL)
+    {
+        printf("Token code: %s, ", map[currentToken->code]);
+        printf("Line: %d, ", currentToken->line);
+        switch (currentToken->code)
+        {
+        case ID:
+            printf("Text: %s\n", currentToken->text);
+            break;
+        case CT_INT:
+            printf("Value: %ld\n", currentToken->i);
+            break;
+        case CT_REAL:
+            printf("Value: %lf\n", currentToken->r);
+            break;
+        case CT_CHAR:
+            printf("Text: %s\n", currentToken->text);
+            break;
+        case CT_STRING:
+            printf("Text: %s\n", currentToken->text);
+            break;
+        default:
+            printf("Text: %s\n", currentToken->text);
+            break;
+        }
+        currentToken = currentToken->next;
+    }
+    free(currentToken);
 }
 
 bool consume(int code){
@@ -623,59 +863,50 @@ bool structDef(){
     return false;
 }
 bool commaBool = false; 
-bool varDef() {
+bool varDef(){
     Token *start = iTk;
     int startInstr = nInstructions;
     Type t;
-    
-    if (typeBase(&t)) {
-        do {
-            if (consume(ID)) {
-                Token* tkName = consumedTk;
-                if (arrayDecl(&t)) {
-                    if (t.n == 0)
-                        tkerr(iTk, "a vector variable must have a specified dimension");
-                }
-                
-                Symbol *var = findSymbolInDomain(symTable, tkName->text);
-                if (var)
-                    tkerr(iTk, "symbol redefinition: %s", tkName->text);
-                
-                var = newSymbol(tkName->text, SK_VAR);
-                var->type = t;
-                var->owner = owner;
-                addSymbolToDomain(symTable, var);
-                
-                if (owner) {
-                    switch (owner->kind) {
+    if(typeBase(&t)){
+        if(consume(ID)){
+            Token* tkName = consumedTk;
+            if(arrayDecl(&t)){
+                if(t.n==0)
+                    tkerr(iTk,"a vector variable must have a specified dimension");
+            }
+            if(consume(SEMICOLON)){
+                Symbol *var=findSymbolInDomain(symTable,tkName->text);
+                if(var)
+                    tkerr(iTk,"symbol redefinition: %s",tkName->text);
+                var=newSymbol(tkName->text,SK_VAR);
+                var->type=t;
+                var->owner=owner;
+                addSymbolToDomain(symTable,var);
+                if(owner){
+                    switch(owner->kind){
                         case SK_FN:
-                            var->varIdx = symbolsLen(owner->fn.locals);
-                            addSymbolToList(&owner->fn.locals, dupSymbol(var));
+                            var->varIdx=symbolsLen(owner->fn.locals);
+                            addSymbolToList(&owner->fn.locals,dupSymbol(var));
                             break;
                         case SK_STRUCT:
-                            var->varIdx = typeSize(&owner->type);
-                            addSymbolToList(&owner->structMembers, dupSymbol(var));
+                            var->varIdx=typeSize(&owner->type);
+                            addSymbolToList(&owner->structMembers,dupSymbol(var));
                             break;
-                    }
-                } else {
-                    var->varIdx = allocInGlobalMemory(typeSize(&t));
+                        }
+                }else{
+                    var->varIdx=allocInGlobalMemory(typeSize(&t));
                 }
-            } else {
-                tkerr(iTk, "Need identifier after type declaration");
+                return true;
             }
-        } while (consume(COMMA)); // Continue if there's a comma
-
-        if (consume(SEMICOLON)) {
-            return true;
-        } else {
-            tkerr(iTk, "Need: ;");
+            else tkerr(iTk, "Need: ;");
         }
+        else tkerr(iTk, "Need identifier after type declaration");
     }
-    
     iTk = start;
     nInstructions = startInstr;
     return false;
 }
+
 
 
 bool typeBase(Type* t){
@@ -1543,7 +1774,7 @@ bool exprPrimary(Ret* r) {
 int main()
 {
   FILE *fis;
-  fis = fopen("0.c", "rb");
+  fis = fopen("testGenerareCod.c", "rb");
 
   if (fis == NULL){
     printf("nu s-a putut deschide fisierul");

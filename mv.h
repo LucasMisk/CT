@@ -112,6 +112,12 @@ void mvChar();
 // adauga functia put_s
 void mvString();
 
+// adauga functia get_i
+void mvGetInt();
+
+// adauga functia get_c
+void mvGetChar();
+
 // Executa codul generat
 void run();
 
