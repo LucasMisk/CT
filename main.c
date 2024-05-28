@@ -862,7 +862,6 @@ bool structDef(){
     nInstructions = startInstr;
     return false;
 }
-bool commaBool = false; 
 bool varDef(){
     Token *start = iTk;
     int startInstr = nInstructions;
@@ -874,6 +873,40 @@ bool varDef(){
                 if(t.n==0)
                     tkerr(iTk,"a vector variable must have a specified dimension");
             }
+            while (1) {
+				    if (consume(COMMA)) {
+					    if (consume(ID)) {
+                            Token* tkName = consumedTk;
+						    if(arrayDecl(&t)){
+                                if(t.n==0)
+                                tkerr(iTk,"a vector variable must have a specified dimension");
+                            }
+                            Symbol *var=findSymbolInDomain(symTable,tkName->text);
+                            if(var)
+                                tkerr(iTk,"symbol redefinition: %s",tkName->text);
+                            var=newSymbol(tkName->text,SK_VAR);
+                            var->type=t;
+                            var->owner=owner;
+                            addSymbolToDomain(symTable,var);
+                            if(owner){
+                                switch(owner->kind){
+                                    case SK_FN:
+                                        var->varIdx=symbolsLen(owner->fn.locals);
+                                        addSymbolToList(&owner->fn.locals,dupSymbol(var));
+                                        break;
+                                    case SK_STRUCT:
+                                        var->varIdx=typeSize(&owner->type);
+                                        addSymbolToList(&owner->structMembers,dupSymbol(var));
+                                        break;
+                                    }
+                            }else{
+                                var->varIdx=allocInGlobalMemory(typeSize(&t));
+                            }
+                        }
+					    else tkerr(iTk,"Missing ID after COMMA in VAR declaration.");
+				    }
+				    else break;
+			    }
             if(consume(SEMICOLON)){
                 Symbol *var=findSymbolInDomain(symTable,tkName->text);
                 if(var)
@@ -900,9 +933,15 @@ bool varDef(){
             }
             else tkerr(iTk, "Need: ;");
         }
-        else tkerr(iTk, "Need identifier after type declaration");
+        else 
+        {
+            tkerr(iTk, "Need identifier after type declaration");
+            iTk = start;
+        }
     }
-    iTk = start;
+    else{
+        iTk = start;
+    }
     nInstructions = startInstr;
     return false;
 }
@@ -960,6 +999,7 @@ bool arrayDecl(Type* t){
 }
 
 bool fnDefPrim(Type* t) {
+    Token *start = iTk;
     if(consume(ID)) {
         Token* tkName = consumedTk;
         if(consume(LPAR)) {
@@ -998,6 +1038,8 @@ bool fnDefPrim(Type* t) {
             }
         }
     }
+    iTk = start;
+
     return false;
 }
 
@@ -1097,7 +1139,8 @@ bool stm() {
             tkerr(iTk, "Missing ( after 'if'");
         }
     }
-    else if(consume(WHILE)) {
+    iTk = start;
+    if(consume(WHILE)) {
         int posCond=nInstructions;
         if(consume(LPAR)) {
             if(expr(&rCond)) {
@@ -1125,7 +1168,8 @@ bool stm() {
             tkerr(iTk, "Missing ( after 'while'");
         }
     }
-    else if(consume(FOR)) {
+    iTk = start;
+    if(consume(FOR)) {
         if(consume(LPAR)) {
             if(expr(&rInit)) {}
             if(consume(SEMICOLON)) {
@@ -1154,14 +1198,16 @@ bool stm() {
             tkerr(iTk, "Missing ( after 'for'");
         }
     }
-    else if(consume(BREAK)) {
+    iTk = start;
+    if(consume(BREAK)) {
         if(consume(SEMICOLON)) {
             return true;
         } else {
             tkerr(consumedTk, "Missing ; after 'break'");
         }
     }
-    else if(consume(RETURN)) {
+    iTk = start;
+    if(consume(RETURN)) {
         returnStatementFound = true;
         if(expr(&rExpr)) {
             if(owner->type.tb==TB_VOID)
@@ -1184,7 +1230,8 @@ bool stm() {
             tkerr(consumedTk, "Missing ; after 'return'");
         }
     }
-    else if(expr(&rExpr)) {
+    iTk = start;
+    if(expr(&rExpr)) {
         if(rExpr.type.tb!=TB_VOID)
             addInstr(OP_DROP);
     }
@@ -1228,7 +1275,7 @@ bool expr(Ret *r){
     if(exprAssign(r)){
         return true;
     }
-    iTk = start;
+    //iTk = start;
     nInstructions = startInstr;
     return false;
 }
